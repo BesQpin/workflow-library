@@ -21,32 +21,51 @@ on:
       GHCR_TOKEN:
         required: true
 
+permissions:
+  contents: write
+
 jobs:
   publish:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
+      # -----------------------------
+      # Versioning step
+      # -----------------------------
+      - name: Determine new version
+        uses: besqpin/workflow-library/.github/workflows/versioning.yml@main
+        id: versioning
+        with:
+          event_name: ${{ github.event_name }}
+          pr_merged: ${{ github.event.pull_request.merged }}
+
+      - name: Update Chart.yaml in runner
+        run: |
+          NEW_VERSION="${{ steps.versioning.outputs.new_tag }}"
+          echo "Updating Chart.yaml with version $NEW_VERSION (runner only)"
+
+          # Update 'version' and 'appVersion' in place
+          yq eval ".version = \"${NEW_VERSION#v}\"" -i ${{ inputs.chart-path }}/Chart.yaml
+          yq eval ".appVersion = \"${NEW_VERSION#v}\"" -i ${{ inputs.chart-path }}/Chart.yaml
+
+      # -----------------------------
+      # Helm packaging and publish
+      # -----------------------------
       - name: Set up Helm
         uses: azure/setup-helm@v4
         with:
           version: v3.14.4
 
-      - name: Extract version from Chart.yaml
-        id: chart_version
-        run: |
-          VERSION=$(yq e '.version' ${{ inputs.chart-path }}/Chart.yaml)
-          APP_VERSION=$(yq e '.appVersion' ${{ inputs.chart-path }}/Chart.yaml)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "app_version=$APP_VERSION" >> $GITHUB_OUTPUT
-
       - name: Package Helm chart
         run: |
+          NEW_VERSION="${{ steps.versioning.outputs.new_tag }}"
           helm package ${{ inputs.chart-path }} \
-            --version ${{ steps.chart_version.outputs.version }} \
-            --app-version ${{ steps.chart_version.outputs.app_version }}
+            --version "${NEW_VERSION#v}" \
+            --app-version "${NEW_VERSION#v}"
 
       - name: Log in to GHCR
         run: |

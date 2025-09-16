@@ -1,0 +1,67 @@
+name: Versioning
+
+on:
+  workflow_call:
+    inputs:
+      event_name:
+        required: true
+        type: string
+      pr_merged:
+        required: false
+        type: boolean
+        default: false
+    outputs:
+      new_tag:
+        description: "The newly created version tag"
+        value: ${{ jobs.bump-version.outputs.new_tag }}
+
+permissions:
+  contents: write
+
+jobs:
+  bump-version:
+    # Skip job if event is not push or merged PR
+    if: inputs.event_name == 'push' || (inputs.event_name == 'pull_request' && inputs.pr_merged == true)
+    runs-on: ubuntu-latest
+    outputs:
+      new_tag: ${{ steps.bump.outputs.new_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch latest tag
+        run: git fetch --tags
+
+      - name: Determine current tag
+        id: get_tag
+        run: |
+          TAG=$(git describe --tags --abbrev=0 || echo "v0.0.0")
+          echo "CURRENT_TAG=$TAG" >> $GITHUB_ENV
+
+      - name: Calculate new version
+        id: bump
+        run: |
+          ver="${CURRENT_TAG#v}"
+          IFS='.' read -r major minor patch <<< "$ver"
+
+          if [ "${{ inputs.event_name }}" = "push" ]; then
+            minor=$((minor + 1))
+            new_tag="v$major.$minor.0"
+            target_commit="${GITHUB_SHA}"
+          else
+            major=$((major + 1))
+            new_tag="v$major.0.0"
+            target_commit="${{ github.event.pull_request.merge_commit_sha || github.sha }}"
+          fi
+
+          echo "new_tag=$new_tag" >> $GITHUB_OUTPUT
+          echo "TARGET_COMMIT=$target_commit" >> $GITHUB_ENV
+
+      - name: Create and push new tag
+        run: |
+          git tag $NEW_TAG $TARGET_COMMIT
+          git push origin $NEW_TAG
+
+      - name: Set output for downstream jobs
+        run: echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
