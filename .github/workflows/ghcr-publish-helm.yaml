@@ -1,0 +1,64 @@
+name: Publish Helm Chart to GHCR
+
+on:
+  workflow_call:
+    inputs:
+      chart-path:
+        description: "Path to the chart directory (e.g. base-chart)"
+        required: true
+        type: string
+      ghcr-org:
+        description: "GitHub org or username (used in ghcr.io/<org>/<chart>)"
+        required: true
+        type: string
+      chart-name:
+        description: "The name to use for the chart in GHCR"
+        required: true
+        type: string
+    secrets:
+      GHCR_USERNAME:
+        required: true
+      GHCR_TOKEN:
+        required: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.4
+
+      - name: Extract version from Chart.yaml
+        id: chart_version
+        run: |
+          VERSION=$(yq e '.version' ${{ inputs.chart-path }}/Chart.yaml)
+          APP_VERSION=$(yq e '.appVersion' ${{ inputs.chart-path }}/Chart.yaml)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "app_version=$APP_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Package Helm chart
+        run: |
+          helm package ${{ inputs.chart-path }} \
+            --version ${{ steps.chart_version.outputs.version }} \
+            --app-version ${{ steps.chart_version.outputs.app_version }}
+
+      - name: Log in to GHCR
+        run: |
+          echo "${{ secrets.GHCR_TOKEN }}" | helm registry login ghcr.io \
+            -u ${{ secrets.GHCR_USERNAME }} --password-stdin
+
+      - name: Push Helm chart to GHCR
+        run: |
+          FILE=$(ls *.tgz | head -n1)
+          if [ -z "$FILE" ]; then
+            echo "Error: No packaged chart found!"
+            exit 1
+          fi
+          echo "Pushing $FILE to ghcr.io/${{ inputs.ghcr-org }}/${{ inputs.chart-name }}..."
+          helm push $FILE oci://ghcr.io/${{ inputs.ghcr-org }}/${{ inputs.chart-name }}
