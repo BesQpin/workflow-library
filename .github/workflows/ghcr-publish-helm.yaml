@@ -25,7 +25,22 @@ permissions:
   contents: write
 
 jobs:
-  publish:
+  # -----------------------------
+  #  Determine new version
+  # -----------------------------
+  versioning:
+    uses: besqpin/workflow-library/.github/workflows/versioning.yml@main
+    with:
+      event_name: ${{ github.event_name }}
+      pr_merged: ${{ github.event.pull_request.merged }}
+    outputs:
+      new_tag: ${{ jobs.versioning.outputs.new_tag }}
+
+  # -----------------------------
+  #  Update Chart.yaml, package, push
+  # -----------------------------
+  helm_publish:
+    needs: versioning
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -33,28 +48,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      # -----------------------------
-      # Versioning step
-      # -----------------------------
-      - name: Determine new version
-        uses: besqpin/workflow-library/.github/workflows/versioning.yaml@main
-        id: versioning
-        with:
-          event_name: ${{ github.event_name }}
-          pr_merged: ${{ github.event.pull_request.merged }}
-
-      - name: Update Chart.yaml in runner
+      - name: Update Chart.yaml with new version (runner only)
         run: |
-          NEW_VERSION="${{ steps.versioning.outputs.new_tag }}"
-          echo "Updating Chart.yaml with version $NEW_VERSION (runner only)"
+          NEW_VERSION="${{ needs.versioning.outputs.new_tag }}"
+          echo "Updating Chart.yaml with version $NEW_VERSION"
 
-          # Update 'version' and 'appVersion' in place
           yq eval ".version = \"${NEW_VERSION#v}\"" -i ${{ inputs.chart-path }}/Chart.yaml
           yq eval ".appVersion = \"${NEW_VERSION#v}\"" -i ${{ inputs.chart-path }}/Chart.yaml
 
-      # -----------------------------
-      # Helm packaging and publish
-      # -----------------------------
       - name: Set up Helm
         uses: azure/setup-helm@v4
         with:
@@ -62,7 +63,7 @@ jobs:
 
       - name: Package Helm chart
         run: |
-          NEW_VERSION="${{ steps.versioning.outputs.new_tag }}"
+          NEW_VERSION="${{ needs.versioning.outputs.new_tag }}"
           helm package ${{ inputs.chart-path }} \
             --version "${NEW_VERSION#v}" \
             --app-version "${NEW_VERSION#v}"
