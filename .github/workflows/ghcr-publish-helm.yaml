@@ -37,7 +37,7 @@ jobs:
       # Versioning step
       # -----------------------------
       - name: Determine new version
-        uses: besqpin/workflow-library/.github/workflows/versioning.yml@main
+        uses: besqpin/workflow-library/.github/workflows/versioning.yaml@main
         id: versioning
         with:
           event_name: ${{ github.event_name }}
