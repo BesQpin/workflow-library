@@ -15,6 +15,15 @@ on:
         description: "The name to use for the chart in GHCR"
         required: true
         type: string
+      event_name:
+        description: "The name of the event that triggered the workflow"
+        required: true
+        type: string
+      pr_merged:
+        description: "Whether the PR was merged"
+        required: true
+        type: boolean
+
     secrets:
       GHCR_USERNAME:
         required: true
@@ -31,8 +40,8 @@ jobs:
   versioning:
     uses: besqpin/workflow-library/.github/workflows/versioning.yaml@main
     with:
-      event_name: ${{ github.event_name }}
-      pr_merged: ${{ github.event.pull_request.merged }}
+      event_name: ${{ inputs.event_name }}
+      pr_merged: ${{ inputs.pr_merged }}
 
 
   # -----------------------------
