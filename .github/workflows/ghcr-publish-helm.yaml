@@ -43,8 +43,7 @@ jobs:
     needs: versioning
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -76,9 +75,4 @@ jobs:
       - name: Push Helm chart to GHCR
         run: |
           FILE=$(ls *.tgz | head -n1)
-          if [ -z "$FILE" ]; then
-            echo "Error: No packaged chart found!"
-            exit 1
-          fi
-          echo "Pushing $FILE to ghcr.io/${{ inputs.ghcr-org }}/${{ inputs.chart-name }}..."
           helm push $FILE oci://ghcr.io/${{ inputs.ghcr-org }}/${{ inputs.chart-name }}
