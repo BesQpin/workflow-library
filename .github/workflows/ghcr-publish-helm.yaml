@@ -16,13 +16,14 @@ on:
         required: true
         type: string
       event_name:
-        description: "The name of the event that triggered the workflow"
+        description: "Event name (push, pull_request, etc.)"
         required: true
         type: string
       pr_merged:
         description: "Whether the PR was merged"
-        required: true
+        required: false
         type: boolean
+        default: false
 
     secrets:
       GHCR_USERNAME:
