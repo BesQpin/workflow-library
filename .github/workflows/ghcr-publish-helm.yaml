@@ -33,8 +33,7 @@ jobs:
     with:
       event_name: ${{ github.event_name }}
       pr_merged: ${{ github.event.pull_request.merged }}
-    outputs:
-      new_tag: ${{ jobs.versioning.outputs.new_tag }}
+
 
   # -----------------------------
   #  Update Chart.yaml, package, push
